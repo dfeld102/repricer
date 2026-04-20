@@ -380,24 +380,11 @@
         if (rows && rows.length > 0) {
           dbRowId = rows[0].id;
           var dbData = rows[0].data;
-          if (Array.isArray(dbData) && dbData.length > 0) {
-            // Cloud has data — always use it as source of truth
-            products = dbData;
-            localStorage.setItem('repricer_products', JSON.stringify(products));
-            setSyncStatus('cloud', '\u2601\uFE0F Cloud geladen');
-            showToast('Daten aus Cloud geladen \u2705', 'success');
-          } else {
-            // Cloud row exists but is empty — push local data up
-            var raw = localStorage.getItem('repricer_products');
-            products = raw ? JSON.parse(raw) : getSampleData();
-            fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, {
-              method: 'PATCH', headers: DB_HEADERS,
-              body: JSON.stringify({ data: products, updated_at: new Date().toISOString() })
-            }).then(function(r2) {
-              if (r2.ok) { setSyncStatus('cloud', '\u2601\uFE0F Synced'); }
-              else { setSyncStatus('local', '\u26A0 Sync-Fehler'); }
-            }).catch(function() { setSyncStatus('local', '\u26A0 Offline'); });
-          }
+          // Cloud is ALWAYS source of truth — even empty array is valid
+          products = Array.isArray(dbData) ? dbData : [];
+          localStorage.setItem('repricer_products', JSON.stringify(products));
+          setSyncStatus('cloud', '\u2601\uFE0F Cloud geladen');
+          if (products.length > 0) showToast('Daten aus Cloud geladen \u2705', 'success');
         } else {
           // No row in DB yet — create one
           var raw = localStorage.getItem('repricer_products');
