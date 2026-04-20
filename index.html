@@ -19,6 +19,10 @@
     .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
     .logo-text { font-size:18px; font-weight:700; background:linear-gradient(135deg,#fff 60%,var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .logo-badge { font-size:11px; background:var(--accent); color:white; padding:2px 8px; border-radius:20px; font-weight:600; -webkit-text-fill-color:white; }
+    .sync-status { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:600; display:inline-flex; align-items:center; gap:5px; }
+    .sync-status.cloud  { background:#0a1a14; color:var(--green);  border:1px solid var(--green); }
+    .sync-status.local  { background:#3a2f10; color:var(--yellow-txt); border:1px solid var(--yellow-txt); }
+    .sync-status.saving { background:#1a1a3a; color:var(--accent); border:1px solid var(--accent); }
     .header-actions { display:flex; gap:10px; align-items:center; }
     .btn { padding:9px 18px; border-radius:8px; border:none; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.18s ease; display:inline-flex; align-items:center; gap:7px; }
     .btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,0,0,0.35); }
@@ -177,6 +181,7 @@
     <div class="logo-icon">&#128230;</div>
     <span class="logo-text">BQool Repricer</span>
     <span class="logo-badge">BETA</span>
+    <span class="sync-status local" id="syncStatus">&#9711; Verbinde...</span>
   </div>
   <div class="header-actions">
     <button class="btn btn-primary" id="btnAdd">&#65291; Produkt hinzuf&uuml;gen</button>
@@ -331,15 +336,25 @@
     setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 3700);
   }
 
+  function setSyncStatus(state, text) {
+    var el = document.getElementById('syncStatus');
+    if (!el) return;
+    el.className = 'sync-status ' + state;
+    el.textContent = text;
+  }
+
   function persist() {
     localStorage.setItem('repricer_products', JSON.stringify(products));
-    if (dbRowId) {
-      fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, {
-        method: 'PATCH',
-        headers: DB_HEADERS,
-        body: JSON.stringify({ data: products, updated_at: new Date().toISOString() })
-      }).catch(function() {});
-    }
+    if (!dbRowId) { setSyncStatus('local', '\u26A0 Nur lokal'); return; }
+    setSyncStatus('saving', '\u21BB Speichert...');
+    fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, {
+      method: 'PATCH',
+      headers: DB_HEADERS,
+      body: JSON.stringify({ data: products, updated_at: new Date().toISOString() })
+    }).then(function(r) {
+      if (r.ok) { setSyncStatus('cloud', '\u2601\uFE0F Gespeichert'); }
+      else { setSyncStatus('local', '\u26A0 Sync-Fehler'); }
+    }).catch(function() { setSyncStatus('local', '\u26A0 Offline'); });
   }
 
   function getSampleData() {
@@ -353,33 +368,56 @@
   }
 
   function init() {
-    fetch(SUPABASE_URL + '/rest/v1/products?select=*&limit=1', { headers: DB_HEADERS })
-      .then(function(r) { return r.json(); })
+    setSyncStatus('local', '\u21BB L\xE4dt...');
+    fetch(SUPABASE_URL + '/rest/v1/products?select=id,data&order=updated_at.desc&limit=1', {
+      headers: DB_HEADERS
+    })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function(rows) {
         if (rows && rows.length > 0) {
           dbRowId = rows[0].id;
           var dbData = rows[0].data;
           if (Array.isArray(dbData) && dbData.length > 0) {
+            // Cloud has data — always use it as source of truth
             products = dbData;
+            localStorage.setItem('repricer_products', JSON.stringify(products));
+            setSyncStatus('cloud', '\u2601\uFE0F Cloud geladen');
+            showToast('Daten aus Cloud geladen \u2705', 'success');
           } else {
+            // Cloud row exists but is empty — push local data up
             var raw = localStorage.getItem('repricer_products');
             products = raw ? JSON.parse(raw) : getSampleData();
-            // Sync local data back to DB
-            if (dbRowId) fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, { method:'PATCH', headers:DB_HEADERS, body:JSON.stringify({data:products, updated_at:new Date().toISOString()}) }).catch(function(){});
+            fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, {
+              method: 'PATCH', headers: DB_HEADERS,
+              body: JSON.stringify({ data: products, updated_at: new Date().toISOString() })
+            }).then(function(r2) {
+              if (r2.ok) { setSyncStatus('cloud', '\u2601\uFE0F Synced'); }
+              else { setSyncStatus('local', '\u26A0 Sync-Fehler'); }
+            }).catch(function() { setSyncStatus('local', '\u26A0 Offline'); });
           }
-          localStorage.setItem('repricer_products', JSON.stringify(products));
         } else {
+          // No row in DB yet — create one
           var raw = localStorage.getItem('repricer_products');
           products = raw ? JSON.parse(raw) : getSampleData();
+          fetch(SUPABASE_URL + '/rest/v1/products', {
+            method: 'POST', headers: Object.assign({}, DB_HEADERS, { 'Prefer': 'return=representation' }),
+            body: JSON.stringify({ data: products })
+          }).then(function(r2) { return r2.json(); })
+            .then(function(newRow) {
+              if (newRow && newRow[0]) { dbRowId = newRow[0].id; setSyncStatus('cloud', '\u2601\uFE0F Verbunden'); }
+            }).catch(function() { setSyncStatus('local', '\u26A0 Offline'); });
         }
         applyFilters();
-        showToast('Daten geladen ☁️', 'success');
       })
       .catch(function() {
         var raw = localStorage.getItem('repricer_products');
         products = raw ? JSON.parse(raw) : getSampleData();
         applyFilters();
-        showToast('Offline — lokale Daten geladen', 'info');
+        setSyncStatus('local', '\u26A0 Offline');
+        showToast('Offline \u2014 lokale Daten geladen', 'info');
       });
   }
 
