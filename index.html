@@ -310,6 +310,13 @@
 
   function persist() {
     localStorage.setItem('repricer_products', JSON.stringify(products));
+    if (dbRowId) {
+      fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, {
+        method: 'PATCH',
+        headers: DB_HEADERS,
+        body: JSON.stringify({ data: products, updated_at: new Date().toISOString() })
+      }).catch(function() {});
+    }
   }
 
   function getSampleData() {
@@ -323,9 +330,26 @@
   }
 
   function init() {
-    var raw = localStorage.getItem('repricer_products');
-    products = raw ? JSON.parse(raw) : getSampleData();
-    applyFilters();
+    fetch(SUPABASE_URL + '/rest/v1/products?select=*&limit=1', { headers: DB_HEADERS })
+      .then(function(r) { return r.json(); })
+      .then(function(rows) {
+        if (rows && rows.length > 0) {
+          dbRowId = rows[0].id;
+          products = Array.isArray(rows[0].data) ? rows[0].data : getSampleData();
+          localStorage.setItem('repricer_products', JSON.stringify(products));
+        } else {
+          var raw = localStorage.getItem('repricer_products');
+          products = raw ? JSON.parse(raw) : getSampleData();
+        }
+        applyFilters();
+        showToast('Daten geladen ☁️', 'success');
+      })
+      .catch(function() {
+        var raw = localStorage.getItem('repricer_products');
+        products = raw ? JSON.parse(raw) : getSampleData();
+        applyFilters();
+        showToast('Offline — lokale Daten geladen', 'info');
+      });
   }
 
   function setFilter(mp, el) {
