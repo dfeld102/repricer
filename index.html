@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BQool Repricer Tool</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --border:#2e3350;
+      --accent:#6c63ff; --accent2:#ff6584; --green:#00c896; --orange:#ff9f43;
+      --red:#ff4d6d; --text:#e8eaf6; --muted:#8b90b8;
+      --yellow-bg:#3a2f10; --yellow-txt:#f0c040;
+      --row-odd:#1e2235; --row-even:#1a1d27; --row-hover:#252a45;
+    }
+    body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 28px; height:64px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 20px rgba(0,0,0,0.4); }
+    .logo { display:flex; align-items:center; gap:12px; }
+    .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+    .logo-text { font-size:18px; font-weight:700; background:linear-gradient(135deg,#fff 60%,var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .logo-badge { font-size:11px; background:var(--accent); color:white; padding:2px 8px; border-radius:20px; font-weight:600; -webkit-text-fill-color:white; }
+    .header-actions { display:flex; gap:10px; align-items:center; }
+    .btn { padding:9px 18px; border-radius:8px; border:none; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.18s ease; display:inline-flex; align-items:center; gap:7px; }
+    .btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,0,0,0.35); }
+    .btn:active { transform:translateY(0); }
+    .btn-primary { background:var(--accent); color:white; }
+    .btn-success { background:var(--green); color:#0a1a14; }
+    .btn-danger  { background:var(--red); color:white; }
+    .btn-export  { background:linear-gradient(135deg,var(--orange),#e67e22); color:white; }
+    .btn-ghost   { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { color:var(--text); border-color:var(--accent); }
+    .btn-sm { padding:6px 12px; font-size:12px; }
+    .controls-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:12px 28px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+    .mp-tabs { display:flex; gap:4px; }
+    .mp-tab { padding:7px 16px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+    .mp-tab:hover { border-color:var(--accent); color:var(--text); }
+    .mp-tab.active { background:var(--accent); border-color:var(--accent); color:white; }
+    .search-wrap { position:relative; display:flex; align-items:center; }
+    .search-icon { position:absolute; left:10px; color:var(--muted); font-size:13px; pointer-events:none; }
+    .search-input { background:var(--surface2); border:1px solid var(--border); border-radius:7px; color:var(--text); font-size:13px; padding:8px 12px 8px 30px; outline:none; width:220px; transition:border-color 0.18s; }
+    .search-input:focus { border-color:var(--accent); }
+    .stats-bar { padding:10px 28px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .stat-pill { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); background:var(--surface2); padding:4px 12px; border-radius:20px; border:1px solid var(--border); }
+    .stat-pill .num { font-weight:700; font-size:13px; color:var(--text); }
+    .stat-pill.warn { border-color:var(--yellow-txt); color:var(--yellow-txt); }
+    .stat-pill.warn .num { color:var(--yellow-txt); }
+    .stat-pill.ok { border-color:var(--green); }
+    .stat-pill.ok .num { color:var(--green); }
+    .stat-pill.green { border-color:var(--green); color:var(--green); }
+    .stat-pill.green .num { color:var(--green); }
+    .stat-pill.yellow { border-color:var(--yellow-txt); color:var(--yellow-txt); }
+    .stat-pill.yellow .num { color:var(--yellow-txt); }
+    .status-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; white-space:nowrap; }
+    .status-badge.exported { background:#0a1a14; color:var(--green); border:1px solid var(--green); cursor:pointer; }
+    .status-badge.exported:hover { background:#0f2e1e; border-color:#00ffb0; color:#00ffb0; }
+    .status-badge.pending  { background:var(--yellow-bg); color:var(--yellow-txt); border:1px solid var(--yellow-txt); }
+    .table-wrap { flex:1; overflow:auto; padding:0 28px 20px; }
+    table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
+    thead th { background:var(--surface2); color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; padding:11px 16px; text-align:left; position:sticky; top:0; border-bottom:1px solid var(--border); }
+    tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; }
+    tbody tr:nth-child(odd)  { background:var(--row-odd); }
+    tbody tr:nth-child(even) { background:var(--row-even); }
+    tbody tr:hover           { background:var(--row-hover); }
+    tbody tr.missing         { background:var(--yellow-bg) !important; }
+    tbody tr.missing:hover   { background:#4a3d15 !important; }
+    td { padding:12px 16px; color:var(--text); }
+    td:last-child { text-align:center; }
+    .sku-cell  { font-family:monospace; font-size:12.5px; color:var(--accent); font-weight:600; }
+    .asin-cell { font-family:monospace; font-size:12px; color:var(--muted); }
+    .mp-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; }
+    .mp-DE { background:#1a2a4a; color:#6ab0ff; border:1px solid #2a4a8a; }
+    .mp-ES { background:#2a1a10; color:#ffb347; border:1px solid #6a3a10; }
+    .mp-IT { background:#1a2a1a; color:#66cc66; border:1px solid #2a6a2a; }
+    .mp-FR { background:#2a1a2a; color:#cc88ff; border:1px solid #6a2a8a; }
+    .price-cell { font-weight:700; font-size:13.5px; }
+    .price-missing { color:var(--yellow-txt); font-size:12px; font-style:italic; font-weight:400; }
+    .rule-cell { font-size:11.5px; color:var(--muted); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .action-btns { display:flex; gap:6px; justify-content:center; }
+    .empty-state { text-align:center; padding:80px 20px; color:var(--muted); display:none; }
+    .empty-state .empty-icon { font-size:52px; margin-bottom:16px; }
+    .empty-state h3 { font-size:18px; color:var(--text); margin-bottom:8px; }
+    .empty-state p  { font-size:14px; margin-bottom:24px; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); z-index:999; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+    .modal-overlay.open { opacity:1; pointer-events:all; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:520px; max-width:95vw; max-height:92vh; overflow-y:auto; box-shadow:0 24px 80px rgba(0,0,0,0.6); transform:scale(0.95) translateY(10px); transition:transform 0.2s; }
+    .modal-overlay.open .modal { transform:scale(1) translateY(0); }
+    .modal-header { padding:22px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .modal-title { font-size:16px; font-weight:700; }
+    .modal-close { background:var(--surface2); border:1px solid var(--border); border-radius:7px; color:var(--muted); width:30px; height:30px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+    .modal-close:hover { color:var(--text); border-color:var(--accent); }
+    .modal-body { padding:20px 24px; }
+    .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+    .form-group { display:flex; flex-direction:column; gap:6px; }
+    .form-label { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+    .form-input { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13.5px; padding:10px 12px; outline:none; width:100%; transition:border-color 0.18s,box-shadow 0.18s; }
+    .form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(108,99,255,0.2); background:#1a1d30; }
+    .form-input:disabled { opacity:0.5; cursor:not-allowed; }
+    .mp-section { border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:10px; }
+    .mp-section-header { padding:10px 14px; display:flex; align-items:center; gap:10px; background:var(--surface2); }
+    .rule-tag { font-size:11px; color:var(--muted); background:var(--surface); padding:2px 8px; border-radius:4px; border:1px solid var(--border); }
+    .mp-section-body { padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+    .confirm-overlay.open { opacity:1; pointer-events:all; }
+    .confirm-box { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:28px; width:360px; box-shadow:0 24px 60px rgba(0,0,0,0.5); transform:scale(0.95); transition:transform 0.2s; }
+    .confirm-overlay.open .confirm-box { transform:scale(1); }
+    .confirm-icon { font-size:36px; margin-bottom:12px; text-align:center; }
+    .confirm-title { font-size:16px; font-weight:700; text-align:center; margin-bottom:8px; }
+    .confirm-msg { font-size:13px; color:var(--muted); text-align:center; margin-bottom:22px; line-height:1.6; white-space:pre-line; }
+    .confirm-actions { display:flex; gap:10px; }
+    .confirm-actions .btn { flex:1; justify-content:center; }
+    .toast-container { position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:9999; }
+    .toast { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 18px; font-size:13px; box-shadow:0 8px 30px rgba(0,0,0,0.4); animation:slideIn 0.25s ease; min-width:260px; max-width:380px; }
+    .toast.success { border-left:4px solid var(--green); }
+    .toast.error   { border-left:4px solid var(--red); }
+    .toast.info    { border-left:4px solid var(--accent); }
+    @keyframes slideIn { from{transform:translateX(30px);opacity:0} to{transform:translateX(0);opacity:1} }
+    ::-webkit-scrollbar { width:7px; height:7px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:10px; }
+    ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+
+    /* ── MOBILE ── */
+    @media (max-width: 640px) {
+      header { height:auto; flex-direction:column; align-items:flex-start; padding:12px 16px; gap:10px; }
+      .header-actions { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      .header-actions .btn { justify-content:center; font-size:12px; padding:10px 8px; }
+      .controls-bar { padding:10px 16px; gap:8px; }
+      .mp-tabs { flex-wrap:wrap; gap:5px; }
+      .mp-tab { padding:6px 11px; font-size:11px; }
+      .search-wrap { width:100%; }
+      .search-input { width:100%; }
+      .stats-bar { padding:8px 16px; gap:7px; }
+      .stat-pill { font-size:11px; padding:3px 10px; }
+      .table-wrap { padding:0 12px 20px; }
+      /* Hide table, show cards instead */
+      #mainTable thead { display:none; }
+      #mainTable, #mainTable tbody { display:block; }
+      #mainTable tbody tr { display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; margin-bottom:12px; padding:14px; background:var(--surface) !important; gap:8px; }
+      #mainTable tbody tr.missing { background:var(--yellow-bg) !important; }
+      #mainTable tbody tr:hover { background:var(--surface2) !important; }
+      #mainTable tbody td { padding:0; border:none; display:flex; align-items:center; gap:8px; font-size:13px; }
+      #mainTable tbody td::before { content:attr(data-label); font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; min-width:80px; }
+      #mainTable tbody td:last-child { text-align:left; }
+      td.sku-cell, td.asin-cell { font-size:12.5px; }
+      .action-btns { justify-content:flex-start; }
+      .btn-sm { padding:8px 14px; font-size:12px; }
+      .modal { width:100%; max-width:100%; border-radius:16px 16px 0 0; position:fixed; bottom:0; max-height:92vh; }
+      .modal-overlay { align-items:flex-end; }
+      .mp-section-body { grid-template-columns:1fr 1fr; }
+      .form-row { grid-template-columns:1fr; }
+      .confirm-box { width:90vw; padding:20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#128230;</div>
+    <span class="logo-text">BQool Repricer</span>
+    <span class="logo-badge">BETA</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-primary" id="btnAdd">&#65291; Produkt hinzuf&uuml;gen</button>
+    <button class="btn btn-export"  id="btnExport">&#11015; CSV exportieren</button>
+    <button class="btn btn-ghost"   id="btnReset">&#8635; Export zurücksetzen</button>
+  </div>
+</header>
+
+<div class="controls-bar">
+  <div class="mp-tabs" id="mpTabs">
+    <button class="mp-tab active" data-mp="Alle">Alle</button>
+    <button class="mp-tab" data-mp="DE">&#127465;&#127466; DE</button>
+    <button class="mp-tab" data-mp="ES">&#127466;&#127480; ES</button>
+    <button class="mp-tab" data-mp="IT">&#127470;&#127481; IT</button>
+    <button class="mp-tab" data-mp="FR">&#127467;&#127479; FR</button>
+  </div>
+  <div style="margin-left:auto">
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input class="search-input" id="searchInput" type="text" placeholder="SKU oder ASIN suchen&hellip;">
+    </div>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-pill">Produkte: <span class="num" id="statProducts">0</span></div>
+  <div class="stat-pill">Zeilen: <span class="num" id="statRows">0</span></div>
+  <div class="stat-pill warn" id="statMissingPill" style="display:none">&#9888;&#65039; Preise fehlen: <span class="num" id="statMissing">0</span></div>
+  <div class="stat-pill ok"   id="statOkPill"      style="display:none">&#9989; Alle Preise gesetzt</div>
+  <div class="stat-pill green" id="statExportedPill" style="display:none">&#128228; Exportiert: <span class="num" id="statExported">0</span></div>
+  <div class="stat-pill yellow" id="statPendingPill"  style="display:none">&#128993; Ausstehend: <span class="num" id="statPending">0</span></div>
+</div>
+
+<div class="table-wrap">
+  <table id="mainTable">
+    <thead>
+      <tr>
+        <th>SKU</th><th>ASIN</th><th>Marktplatz</th>
+        <th>Repricing Regel</th><th>Min Preis (&euro;)</th><th>Max Preis (&euro;)</th>
+        <th style="text-align:center">Status</th><th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">&#128237;</div>
+    <h3>Noch keine Produkte</h3>
+    <p>F&uuml;ge dein erstes Produkt hinzu, um loszulegen.</p>
+    <button class="btn btn-primary" id="btnAddEmpty">&#65291; Produkt hinzuf&uuml;gen</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Neues Produkt</div>
+      <button class="modal-close" id="btnModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">SellerSKU *</label>
+          <input class="form-input" id="fieldSKU" type="text" placeholder="z. B. DE-001-XYZ">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ASIN *</label>
+          <input class="form-input" id="fieldASIN" type="text" placeholder="z. B. B08N5WRWNW">
+        </div>
+      </div>
+      <div style="margin:18px 0 12px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">&#128176; Preise je Marktplatz</div>
+      <div class="mp-section">
+        <div class="mp-section-header"><span class="mp-badge mp-DE">&#127465;&#127466; DE</span><span class="rule-tag">Inventory Age Conditions</span></div>
+        <div class="mp-section-body">
+          <div class="form-group"><label class="form-label">Min Preis (&euro;)</label><input class="form-input price-input" id="min-DE" type="text" inputmode="numeric" placeholder="0.00"></div>
+          <div class="form-group"><label class="form-label">Max Preis (&euro;)</label><input class="form-input price-input" id="max-DE" type="text" inputmode="numeric" placeholder="0.00"></div>
+        </div>
+      </div>
+      <div class="mp-section">
+        <div class="mp-section-header"><span class="mp-badge mp-ES">&#127466;&#127480; ES</span><span class="rule-tag">Undercut the Buy Box Price</span></div>
+        <div class="mp-section-body">
+          <div class="form-group"><label class="form-label">Min Preis (&euro;)</label><input class="form-input price-input" id="min-ES" type="text" inputmode="numeric" placeholder="0.00"></div>
+          <div class="form-group"><label class="form-label">Max Preis (&euro;)</label><input class="form-input price-input" id="max-ES" type="text" inputmode="numeric" placeholder="0.00"></div>
+        </div>
+      </div>
+      <div class="mp-section">
+        <div class="mp-section-header"><span class="mp-badge mp-FR">&#127467;&#127479; FR</span><span class="rule-tag">Undercut the Buy Box Price</span></div>
+        <div class="mp-section-body">
+          <div class="form-group"><label class="form-label">Min Preis (&euro;)</label><input class="form-input price-input" id="min-FR" type="text" inputmode="numeric" placeholder="0.00"></div>
+          <div class="form-group"><label class="form-label">Max Preis (&euro;)</label><input class="form-input price-input" id="max-FR" type="text" inputmode="numeric" placeholder="0.00"></div>
+        </div>
+      </div>
+      <div class="mp-section">
+        <div class="mp-section-header"><span class="mp-badge mp-IT">&#127470;&#127481; IT</span><span class="rule-tag">Undercut the Buy Box Price</span></div>
+        <div class="mp-section-body">
+          <div class="form-group"><label class="form-label">Min Preis (&euro;)</label><input class="form-input price-input" id="min-IT" type="text" inputmode="numeric" placeholder="0.00"></div>
+          <div class="form-group"><label class="form-label">Max Preis (&euro;)</label><input class="form-input price-input" id="max-IT" type="text" inputmode="numeric" placeholder="0.00"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btnModalCancel">Abbrechen</button>
+      <button class="btn btn-success" id="btnModalSave">&#10003; Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-icon">&#128465;&#65039;</div>
+    <div class="confirm-title">Produkt l&ouml;schen?</div>
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="btnConfirmCancel">Abbrechen</button>
+      <button class="btn btn-danger" id="confirmOkBtn">L&ouml;schen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var MARKETPLACES = ['DE','ES','IT','FR'];
+  var CHANNEL_MAP  = { DE:'Amazon DE', ES:'Amazon ES', IT:'Amazon IT', FR:'Amazon FR' };
+  var RULE_MAP     = { DE:'Inventory Age Conditions', ES:'Undercut the Buy Box Price', IT:'Undercut the Buy Box Price', FR:'Undercut the Buy Box Price' };
+  var FLAG_MAP     = { DE:'\uD83C\uDDE9\uD83C\uDDEA', ES:'\uD83C\uDDEA\uD83C\uDDF8', IT:'\uD83C\uDDEE\uD83C\uDDF9', FR:'\uD83C\uDDEB\uD83C\uDDF7' };
+
+  var products = [];
+  var activeFilter = 'Alle';
+  var editingIndex = null;
+  var confirmCallback = null;
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, type) {
+    var c = document.getElementById('toastContainer');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(function() { t.style.opacity='0'; t.style.transition='opacity 0.4s'; }, 3200);
+    setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 3700);
+  }
+
+  function persist() {
+    localStorage.setItem('repricer_products', JSON.stringify(products));
+  }
+
+  function getSampleData() {
+    return [
+      { sku:'DE-001-KABEL',  asin:'B08N5WRWNW', exported:false, preise:{ DE:{min:10.99,max:15.99}, ES:{min:11.49,max:16.49}, IT:{min:11.49,max:16.49}, FR:{min:11.49,max:16.49} } },
+      { sku:'DE-002-HALTER', asin:'B09G3HRMVB', exported:false, preise:{ DE:{min:18.50,max:26.00}, ES:{min:19.00,max:26.50}, IT:{min:19.00,max:26.50}, FR:{min:19.00,max:26.50} } },
+      { sku:'DE-003-COVER',  asin:'B07XJ8C8F5', exported:false, preise:{ DE:{min:7.99, max:11.99}, ES:{min:8.49, max:12.49}, IT:{},                    FR:{min:8.49, max:12.49} } },
+      { sku:'DE-004-AKKU',   asin:'B0BCNKKGNR', exported:false, preise:{ DE:{min:22.00,max:32.00}, ES:{min:22.50,max:32.50}, IT:{min:22.50,max:32.50}, FR:{min:22.50,max:32.50} } },
+      { sku:'DE-005-STAND',  asin:'B08KTZ8249', exported:false, preise:{ DE:{min:14.99,max:21.99}, ES:{},                    IT:{},                    FR:{} } }
+    ];
+  }
+
+  function init() {
+    var raw = localStorage.getItem('repricer_products');
+    products = raw ? JSON.parse(raw) : getSampleData();
+    applyFilters();
+  }
+
+  function setFilter(mp, el) {
+    activeFilter = mp;
+    document.querySelectorAll('.mp-tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+    applyFilters();
+  }
+
+  function applyFilters() {
+    var search = document.getElementById('searchInput').value.trim().toUpperCase();
+    var tbody  = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    var rows = 0, missing = 0;
+
+    var filtered = products.filter(function(p) {
+      return !search || p.sku.toUpperCase().indexOf(search) !== -1 || p.asin.toUpperCase().indexOf(search) !== -1;
+    });
+
+    products.forEach(function(p) {
+      MARKETPLACES.forEach(function(mp) {
+        var pr = p.preise[mp] || {};
+        if (pr.min == null || pr.max == null) missing++;
+      });
+    });
+
+    var empty = document.getElementById('emptyState');
+    var table = document.getElementById('mainTable');
+    if (filtered.length === 0) { empty.style.display='block'; table.style.display='none'; }
+    else                       { empty.style.display='none';  table.style.display=''; }
+
+    filtered.forEach(function(p) {
+      var gi  = products.indexOf(p);
+      var mps = activeFilter === 'Alle' ? MARKETPLACES : [activeFilter];
+      mps.forEach(function(mp) {
+        var pr  = p.preise[mp] || {};
+        var mis = pr.min == null || pr.max == null;
+        var tr  = document.createElement('tr');
+        if (mis) tr.classList.add('missing');
+        var minS = pr.min != null ? '\u20AC ' + pr.min.toFixed(2) : '<span class="price-missing">nicht gesetzt</span>';
+        var maxS = pr.max != null ? '\u20AC ' + pr.max.toFixed(2) : '<span class="price-missing">nicht gesetzt</span>';
+        tr.innerHTML =
+          '<td class="sku-cell" data-label="SKU">'  + esc(p.sku)  + '</td>' +
+          '<td class="asin-cell" data-label="ASIN">' + esc(p.asin) + '</td>' +
+          '<td data-label="Marktplatz"><span class="mp-badge mp-' + mp + '">' + FLAG_MAP[mp] + ' ' + mp + '</span></td>' +
+          '<td class="rule-cell" data-label="Regel" title="' + RULE_MAP[mp] + '">' + RULE_MAP[mp] + '</td>' +
+          '<td class="price-cell" data-label="Min">' + minS + '</td>' +
+          '<td class="price-cell" data-label="Max">' + maxS + '</td>' +
+          '<td style="text-align:center">' + (p.exported
+            ? '<span class="status-badge exported" data-action="toggle-export" data-idx="' + gi + '" title="Klicken zum Zur\xFCcksetzen">✅ Exportiert</span>'
+            : '<span class="status-badge pending">\uD83D\uDFE1 Ausstehend</span>') + '</td>' +
+          '<td><div class="action-btns">' +
+            '<button class="btn btn-ghost btn-sm" data-action="edit" data-idx="' + gi + '" title="Bearbeiten">&#9999;&#65039;</button>' +
+            '<button class="btn btn-danger btn-sm" data-action="delete" data-idx="' + gi + '" title="L\xF6schen">&#128465;</button>' +
+          '</div></td>';
+        tbody.appendChild(tr);
+        rows++;
+      });
+    });
+
+    document.getElementById('statProducts').textContent = products.length;
+    document.getElementById('statRows').textContent = rows;
+    var mp2 = document.getElementById('statMissingPill');
+    var ok  = document.getElementById('statOkPill');
+    if (missing > 0) { mp2.style.display=''; ok.style.display='none'; document.getElementById('statMissing').textContent=missing; }
+    else if (products.length > 0) { mp2.style.display='none'; ok.style.display=''; }
+    else { mp2.style.display='none'; ok.style.display='none'; }
+    var expCount  = products.filter(function(p) { return p.exported; }).length;
+    var pendCount = products.filter(function(p) { return !p.exported; }).length;
+    var epill = document.getElementById('statExportedPill');
+    var ppill = document.getElementById('statPendingPill');
+    if (products.length > 0) {
+      if (expCount  > 0) { epill.style.display=''; document.getElementById('statExported').textContent=expCount; } else { epill.style.display='none'; }
+      if (pendCount > 0) { ppill.style.display=''; document.getElementById('statPending').textContent=pendCount; }  else { ppill.style.display='none'; }
+    } else { epill.style.display='none'; ppill.style.display='none'; }
+  }
+
+  function makePriceInput(el) {
+    var MAX = 6;
+    var freshFocus = false;
+    el.addEventListener('focus', function() {
+      freshFocus = true;
+      var self = this;
+      setTimeout(function() { self.select(); }, 0);
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        freshFocus = false;
+        var d = this.value.replace(/[^0-9]/g,'').slice(0,-1);
+        this.value = d ? (parseInt(d,10)/100).toFixed(2) : '';
+        return;
+      }
+      if (e.key === 'Tab') return;
+      if (!/^[0-9]$/.test(e.key)) { e.preventDefault(); return; }
+      e.preventDefault();
+      var d2 = freshFocus ? '' : this.value.replace(/[^0-9]/g,'');
+      freshFocus = false;
+      if (d2.length >= MAX) return;
+      this.value = (parseInt(d2 + e.key, 10) / 100).toFixed(2);
+    });
+    el.addEventListener('paste', function(e) { e.preventDefault(); });
+    el._priceInit = true;
+  }
+
+  function initPriceInputs() {
+    document.querySelectorAll('.price-input').forEach(function(el) {
+      if (!el._priceInit) makePriceInput(el);
+    });
+  }
+
+  function openAddModal() {
+    editingIndex = null;
+    document.getElementById('modalTitle').textContent = '+ Neues Produkt';
+    document.getElementById('fieldSKU').disabled = false;
+    document.getElementById('fieldSKU').value  = '';
+    document.getElementById('fieldASIN').value = '';
+    MARKETPLACES.forEach(function(mp) {
+      document.getElementById('min-' + mp).value = '';
+      document.getElementById('max-' + mp).value = '';
+    });
+    document.getElementById('modalOverlay').classList.add('open');
+    initPriceInputs();
+    setTimeout(function() { document.getElementById('fieldSKU').focus(); }, 150);
+  }
+
+  function openEditModal(idx) {
+    editingIndex = idx;
+    var p = products[idx];
+    document.getElementById('modalTitle').textContent = 'Produkt bearbeiten';
+    document.getElementById('fieldSKU').disabled = true;
+    document.getElementById('fieldSKU').value  = p.sku;
+    document.getElementById('fieldASIN').value = p.asin;
+    MARKETPLACES.forEach(function(mp) {
+      var pr = p.preise[mp] || {};
+      document.getElementById('min-' + mp).value = pr.min != null ? pr.min.toFixed(2) : '';
+      document.getElementById('max-' + mp).value = pr.max != null ? pr.max.toFixed(2) : '';
+    });
+    document.getElementById('modalOverlay').classList.add('open');
+    initPriceInputs();
+  }
+
+  function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+  function saveProduct() {
+    var sku  = document.getElementById('fieldSKU').value.trim();
+    var asin = document.getElementById('fieldASIN').value.trim().toUpperCase();
+    if (!sku || !asin) { showToast('SKU und ASIN sind Pflichtfelder!','error'); return; }
+    if (editingIndex === null && products.some(function(p) { return p.sku === sku; })) { showToast('SKU existiert bereits!','error'); return; }
+    var preise = {};
+    for (var i = 0; i < MARKETPLACES.length; i++) {
+      var mp = MARKETPLACES[i];
+      var minV = document.getElementById('min-' + mp).value.trim();
+      var maxV = document.getElementById('max-' + mp).value.trim();
+      var e = {};
+      if (minV !== '') { var v1 = parseFloat(minV.replace(',','.')); if (isNaN(v1)||v1<0) { showToast(mp+': Ung\xFCltiger Min-Preis','error'); return; } e.min=v1; }
+      if (maxV !== '') { var v2 = parseFloat(maxV.replace(',','.')); if (isNaN(v2)||v2<0) { showToast(mp+': Ung\xFCltiger Max-Preis','error'); return; } e.max=v2; }
+      if (e.min!=null && e.max!=null && e.min>=e.max) { showToast(mp+': Min muss kleiner als Max sein!','error'); return; }
+      preise[mp] = e;
+    }
+    if (editingIndex === null) {
+      products.unshift({ sku:sku, asin:asin, preise:preise, addedAt:Date.now(), exported:false });
+      showToast('Produkt "'+sku+'" hinzugef\xFCgt','success');
+    } else {
+      products[editingIndex].asin   = asin;
+      products[editingIndex].preise = preise;
+      showToast('Produkt aktualisiert','success');
+    }
+    persist(); applyFilters(); closeModal();
+  }
+
+  function confirmDelete(idx) {
+    var p = products[idx];
+    document.getElementById('confirmMsg').textContent = 'Produkt "' + p.sku + '" (' + p.asin + ') wirklich entfernen?\nAlle 4 Marktpl\xE4tze werden gel\xF6scht.';
+    confirmCallback = function() { products.splice(idx,1); persist(); applyFilters(); showToast('Produkt gel\xF6scht','info'); };
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('open'); }
+
+  function resetExported() {
+    var count = products.filter(function(p) { return p.exported; }).length;
+    if (count === 0) { showToast('Keine exportierten Produkte zum Zurücksetzen.', 'info'); return; }
+    products.forEach(function(p) { p.exported = false; });
+    persist(); applyFilters();
+    showToast(count + ' Produkte zurückgesetzt — bereit für neuen Export.', 'success');
+  }
+
+  function exportCSV() {
+    if (!products.length) { showToast('Keine Produkte vorhanden!','error'); return; }
+    var header1 = 'FileType = repricing,  Version = 1.2.5 (Please do not edit this line or this will result in error when uploading)';
+    var header2 = 'Channel\tSellerSKU\tCost\tAdditional Cost\tRule Name\tMin Price\tMax Price\tShipping\tadd-delete\tGroup\tEnable Repricing';
+    var rows = [];
+    var skipped = [];
+    for (var i = 0; i < products.length; i++) {
+      var p = products[i];
+      for (var j = 0; j < MARKETPLACES.length; j++) {
+        var mp = MARKETPLACES[j];
+        var pr = p.preise[mp] || {};
+        if (p.exported) { continue; }
+        if (pr.min == null || pr.max == null) { skipped.push(p.sku + ' (' + mp + ')'); continue; }
+        rows.push([CHANNEL_MAP[mp], p.sku, '', '', RULE_MAP[mp], pr.min.toFixed(2), pr.max.toFixed(2), '', '', '', '1'].join('\t'));
+      }
+    }
+    var tsv  = header1 + '\r\n' + header2 + '\r\n' + rows.join('\r\n');
+    var blob = new Blob([tsv], { type:'text/plain;charset=utf-8' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = 'bqool_repricer_upload.txt'; a.click();
+    URL.revokeObjectURL(url);
+    for (var k = 0; k < products.length; k++) {
+      var hasAny = MARKETPLACES.some(function(mp2) { var pr2 = products[k].preise[mp2]||{}; return pr2.min!=null && pr2.max!=null; });
+      if (hasAny) products[k].exported = true;
+    }
+    persist(); applyFilters();
+    showToast(rows.length + ' Zeilen exportiert' + (skipped.length ? '. \xDCbersprungen: ' + skipped.length : '!'), skipped.length ? 'info' : 'success');
+  }
+
+  // --- Event listeners (all via addEventListener, no inline onclick) ---
+  document.addEventListener('DOMContentLoaded', function() {
+    init();
+    initPriceInputs();
+
+    document.getElementById('btnAdd').addEventListener('click', openAddModal);
+    document.getElementById('btnAddEmpty').addEventListener('click', openAddModal);
+    document.getElementById('btnExport').addEventListener('click', exportCSV);
+    document.getElementById('btnModalClose').addEventListener('click', closeModal);
+    document.getElementById('btnModalCancel').addEventListener('click', closeModal);
+    document.getElementById('btnModalSave').addEventListener('click', saveProduct);
+    document.getElementById('btnConfirmCancel').addEventListener('click', closeConfirm);
+    document.getElementById('confirmOkBtn').addEventListener('click', function() {
+      if (confirmCallback) confirmCallback();
+      confirmCallback = null;
+      closeConfirm();
+    });
+
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+    document.getElementById('mpTabs').addEventListener('click', function(e) {
+      var btn = e.target.closest('.mp-tab');
+      if (btn) setFilter(btn.dataset.mp, btn);
+    });
+
+    document.getElementById('tableBody').addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var idx = parseInt(btn.dataset.idx, 10);
+      if (btn.dataset.action === 'edit')          openEditModal(idx);
+      if (btn.dataset.action === 'delete')         confirmDelete(idx);
+      if (btn.dataset.action === 'toggle-export') { products[idx].exported = false; persist(); applyFilters(); showToast('Export für "' + products[idx].sku + '" zurückgesetzt.', 'info'); }
+    });
+
+    document.getElementById('confirmOverlay').addEventListener('click', function(e) {
+      if (e.target === document.getElementById('confirmOverlay')) closeConfirm();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { closeModal(); closeConfirm(); }
+      if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('open')) saveProduct();
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
