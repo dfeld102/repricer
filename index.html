@@ -289,6 +289,11 @@
   var RULE_MAP     = { DE:'Inventory Age Conditions', ES:'Undercut the Buy Box Price', IT:'Undercut the Buy Box Price', FR:'Undercut the Buy Box Price' };
   var FLAG_MAP     = { DE:'\uD83C\uDDE9\uD83C\uDDEA', ES:'\uD83C\uDDEA\uD83C\uDDF8', IT:'\uD83C\uDDEE\uD83C\uDDF9', FR:'\uD83C\uDDEB\uD83C\uDDF7' };
 
+  var SUPABASE_URL = 'https://stqrumezuwudqdfkddmm.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0cXJ1bWV6dXd1ZHFkZmtkZG1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDA5NTksImV4cCI6MjA5MjI3Njk1OX0.lgV3ollijK2rFtbQhnwsohvnRk2wLb_cqtdeLzO7lq0';
+  var DB_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
+  var dbRowId = null;
+
   var products = [];
   var activeFilter = 'Alle';
   var editingIndex = null;
@@ -335,7 +340,15 @@
       .then(function(rows) {
         if (rows && rows.length > 0) {
           dbRowId = rows[0].id;
-          products = Array.isArray(rows[0].data) ? rows[0].data : getSampleData();
+          var dbData = rows[0].data;
+          if (Array.isArray(dbData) && dbData.length > 0) {
+            products = dbData;
+          } else {
+            var raw = localStorage.getItem('repricer_products');
+            products = raw ? JSON.parse(raw) : getSampleData();
+            // Sync local data back to DB
+            if (dbRowId) fetch(SUPABASE_URL + '/rest/v1/products?id=eq.' + dbRowId, { method:'PATCH', headers:DB_HEADERS, body:JSON.stringify({data:products, updated_at:new Date().toISOString()}) }).catch(function(){});
+          }
           localStorage.setItem('repricer_products', JSON.stringify(products));
         } else {
           var raw = localStorage.getItem('repricer_products');
@@ -576,6 +589,7 @@
     document.getElementById('btnAdd').addEventListener('click', openAddModal);
     document.getElementById('btnAddEmpty').addEventListener('click', openAddModal);
     document.getElementById('btnExport').addEventListener('click', exportCSV);
+    document.getElementById('btnReset').addEventListener('click', resetExported);
     document.getElementById('btnModalClose').addEventListener('click', closeModal);
     document.getElementById('btnModalCancel').addEventListener('click', closeModal);
     document.getElementById('btnModalSave').addEventListener('click', saveProduct);
